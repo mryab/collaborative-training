@@ -1,0 +1,17 @@
+python train_albert.py \
+  --experiment albert-large --model albert-large-v2 \
+  --initial_peers 13.59.134.126:38763 \
+  --output_dir albert --overwrite_output_dir \
+  --do_train --do_eval \
+  --evaluation_strategy steps \
+  --per_device_train_batch_size 3 \
+  --per_device_eval_batch_size 3 \
+  --gradient_accumulation_steps 16 \
+  --seq_length 512 \
+  --learning_rate 0.00176 --max_grad_norm 25.0 \
+  --max_steps 50000 --warmup_steps 5000 \
+  --logging_dir logs/albert/new --logging_first_step \
+  --save_steps 5000 --save_total_limit 5 \
+  --seed 0 --eval_steps 5000 \
+  --dataloader_num_workers 4 \
+  --adam_epsilon 1e-6 --weight_decay 0.01 \
