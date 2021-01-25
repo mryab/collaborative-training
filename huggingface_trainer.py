@@ -7,7 +7,7 @@ from typing import Optional, Union, Dict, Any
 import torch
 import torch.nn as nn
 import torch.distributed
-from transformers.trainer import Trainer, TrainerState, TrainOutput
+from transformers.trainer import Trainer, TrainerState, TrainOutput, TrainerCallback
 from transformers.trainer import (set_seed, init_deepspeed, PreTrainedModel, hp_params, speed_metrics,
                                   is_torch_tpu_available, logger, DistributedSampler, DataLoader)
 from transformers.trainer import WEIGHTS_NAME
@@ -16,12 +16,18 @@ if is_apex_available():
     from apex import amp
 
 
-class ExtendableTrainer(Trainer):
-    """ an exact copy of normal huggingface trainer that calls apply_gradients to get apply gradients """
+class ExtendableTrainer(Trainer, TrainerCallback):
+    """
+    an exact copy of normal huggingface trainer that extracts optimizer step into a separate (extendable) method
+    :note: it seems that such extension should be done with callbacks, but there are no callbacks before/after optimizer
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.add_callback(self)  # this is a dirty hack to enable self.on_train_begin in Trainer [TODO refactor]
 
     def apply_gradients(self, epoch, step, tr_loss, trial, steps_in_epoch, local_batch_size):
         """ :note: this function is called every time the original trainer would perform optimizer step """
-        raise NotImplementedError()
+        return self.optimizer_step(epoch, step, tr_loss, trial, steps_in_epoch)
 
     def optimizer_step(self, epoch, step, tr_loss, trial, steps_in_epoch):
         """ This is an exact copy of an excerpt from Trainer.train that runs a single step of optimization """
