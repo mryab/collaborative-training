@@ -1,5 +1,5 @@
 
-This code trains ALBERT-v2-large model on BookCorpus on decentraized participants.
+This code trains ALBERT-large-v2 model on BookCorpus on decentraized participants.
 
 __Requirements (for all participants):__
 * `git clone https://github.com/learning-at-home/hivemind -b albert_exp2`
