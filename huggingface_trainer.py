@@ -65,6 +65,7 @@ class ExtendableTrainer(Trainer, TrainerCallback):
         self.control = self.callback_handler.on_step_end(self.args, self.state, self.control)
 
         self._maybe_log_save_evaluate(tr_loss, self.model, trial, epoch)
+        return tr_loss
 
     def train(self, model_path: Optional[str] = None, trial: Union["optuna.Trial", Dict[str, Any]] = None):
         """
@@ -288,7 +289,7 @@ class ExtendableTrainer(Trainer, TrainerCallback):
                     steps_in_epoch <= self.args.gradient_accumulation_steps
                     and (step + 1) == steps_in_epoch
                 ):
-                    self.apply_gradients(epoch, step, tr_loss, trial, steps_in_epoch, total_train_batch_size)
+                    tr_loss = self.apply_gradients(epoch, step, tr_loss, trial, steps_in_epoch, total_train_batch_size)
 
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break

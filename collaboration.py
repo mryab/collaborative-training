@@ -95,7 +95,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         self.averager.load_state_from_peers()
         run_in_background(self.check_collaboration_state_periodically)
 
-    def apply_gradients(self, epoch, step, tr_loss, trial, steps_in_epoch, local_batch_size):
+    def apply_gradients(self, epoch, step, tr_loss, trial, steps_in_epoch, local_batch_size) -> bool:
         """
         Accumulate gradients until peers collectively reach target batch size; then average and perform optimizer step
         :note: this function is called every time the original trainer would perform optimizer step
@@ -116,10 +116,11 @@ class CollaborativeTrainer(ExtendableTrainer):
             with self.lock:
                 logger.info(f"Running optimizer step {self.local_step}")
                 average_tr_loss = self.averager_step(tr_loss)
-                self.optimizer_step(epoch, step, average_tr_loss, trial, steps_in_epoch)
+                tr_loss = self.optimizer_step(epoch, step, average_tr_loss, trial, steps_in_epoch)
                 self.local_samples_accumulated = self.local_steps_accumulated = 0
                 self.collaboration_state.register_step()
                 logger.info(f"Optimizer step: done! Accumulating for step {self.local_step}...")
+        return tr_loss
 
     def averager_step(self, tr_loss):
         """ Average parameters and gradients with other peers """
