@@ -155,7 +155,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
             for averaged_tensor, gpu_tensor in zip(averaged_tensors, self.model.parameters()):
                 gpu_tensor[...] = averaged_tensor
-        logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}]")
+        logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss.item():.3f}]")
         return average_loss
 
     def on_train_end(self, *args, **kwargs):
