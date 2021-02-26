@@ -289,7 +289,7 @@ class ExtendableTrainer(Trainer, TrainerCallback):
                     steps_in_epoch <= self.args.gradient_accumulation_steps
                     and (step + 1) == steps_in_epoch
                 ):
-                    tr_loss = self.apply_gradients(epoch, step, tr_loss, trial, steps_in_epoch, total_train_batch_size)
+                    tr_loss[...] = self.apply_gradients(epoch, step, tr_loss, trial, steps_in_epoch, total_train_batch_size)
 
                 if self.control.should_epoch_stop or self.control.should_training_stop:
                     break
