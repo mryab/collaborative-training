@@ -143,6 +143,9 @@ class CollaborativeTrainer(ExtendableTrainer):
                     samples_accumulated=self.local_samples_accumulated,
                     scale=self.local_samples_accumulated / mean_samples_per_worker)
         group_infos = self.averager.step(info, timeout=self.collaboration_args.averaging_step_timeout)
+        if group_infos is None:
+            logger.warning("Averaging step failed, using local updates only.")
+            return tr_loss / self.local_steps_accumulated
 
         numerator = sum(info['samples_accumulated'] * info['tr_loss'] / info['steps_accumulated']
                         for info in group_infos.values())
