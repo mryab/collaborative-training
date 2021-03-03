@@ -66,27 +66,22 @@ def dump_optimizer_state(optimizer: torch.optim.Optimizer):
         flat_metadata, flat_tensors = [], []
         for elem in nested_flatten(optimizer.state_dict()):
             if isinstance(elem, torch.Tensor):
-                flat_metadata.append(TensorPointer(index=len(flat_tensors)))
+                flat_metadata.append(dict(type='tensor', index=len(flat_tensors)))
                 flat_tensors.append(elem.cpu())
             else:
-                flat_metadata.append(elem)
+                flat_metadata.append(dict(type='value', value=elem))
         return flat_metadata, flat_tensors
 
 
 def load_optimizer_state(optimizer: torch.optim.Optimizer, flat_metadata: Dict, flat_tensors: Sequence[torch.Tensor]):
     flat_optimizer_state = []
     for elem in flat_metadata:
-        if isinstance(elem, TensorPointer):
-            flat_optimizer_state.append(flat_tensors[elem.index])
-        else:
-            flat_optimizer_state.append(elem)
+        if elem.get('type') == 'tensor' and isinstance(elem.get('index'), int):
+            flat_optimizer_state.append(flat_tensors[elem['index']])
+        elif elem.get('type') == 'value' and 'value' in elem:
+            flat_optimizer_state.append(elem['value'])
     with torch.no_grad():
         return optimizer.load_state_dict(nested_pack(flat_optimizer_state, structure=optimizer.state_dict()))
-
-
-@dataclass
-class TensorPointer:
-    index: int
 
 
 class PerformanceEMA:
