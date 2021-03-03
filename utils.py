@@ -29,7 +29,7 @@ class SimpleAverager(hivemind.DecentralizedAverager):
             model_parameters = [x.cpu() for x in self.trainer.model.parameters()]
             optimizer_metadata, optimizer_tensors = dump_optimizer_state(self.trainer.optimizer)
 
-        metadata = dict(step=self.trainer.state.global_step, group_key=self.get_current_group_key(),
+        metadata = dict(step=self.trainer.state.global_step, group_bits=self.get_group_bits(),
                         optimizer_metadata=optimizer_metadata)
         return metadata, list(chain(model_parameters, optimizer_tensors))
 
