@@ -29,7 +29,7 @@ class SimpleAverager(hivemind.DecentralizedAverager):
             model_parameters = [x.cpu() for x in self.trainer.model.parameters()]
             optimizer_metadata, optimizer_tensors = dump_optimizer_state(self.trainer.optimizer)
 
-        metadata = dict(step=self.trainer.state.global_step, group_key=self.get_current_group_key(),
+        metadata = dict(step=self.trainer.state.global_step, group_bits=self.get_group_bits(),
                         optimizer_metadata=optimizer_metadata)
         return metadata, list(chain(model_parameters, optimizer_tensors))
 
@@ -66,27 +66,22 @@ def dump_optimizer_state(optimizer: torch.optim.Optimizer):
         flat_metadata, flat_tensors = [], []
         for elem in nested_flatten(optimizer.state_dict()):
             if isinstance(elem, torch.Tensor):
-                flat_metadata.append(TensorPointer(index=len(flat_tensors)))
+                flat_metadata.append(dict(type='tensor', index=len(flat_tensors)))
                 flat_tensors.append(elem.cpu())
             else:
-                flat_metadata.append(elem)
+                flat_metadata.append(dict(type='value', value=elem))
         return flat_metadata, flat_tensors
 
 
 def load_optimizer_state(optimizer: torch.optim.Optimizer, flat_metadata: Dict, flat_tensors: Sequence[torch.Tensor]):
     flat_optimizer_state = []
     for elem in flat_metadata:
-        if isinstance(elem, TensorPointer):
-            flat_optimizer_state.append(flat_tensors[elem.index])
-        else:
-            flat_optimizer_state.append(elem)
+        if elem.get('type') == 'tensor' and isinstance(elem.get('index'), int):
+            flat_optimizer_state.append(flat_tensors[elem['index']])
+        elif elem.get('type') == 'value' and 'value' in elem:
+            flat_optimizer_state.append(elem['value'])
     with torch.no_grad():
         return optimizer.load_state_dict(nested_pack(flat_optimizer_state, structure=optimizer.state_dict()))
-
-
-@dataclass
-class TensorPointer:
-    index: int
 
 
 class PerformanceEMA:
