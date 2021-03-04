@@ -128,7 +128,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         collaboration = self.fetch_collaboration_state()
         if collaboration.num_peers <= 1:
             logger.warning(f"Skipping averaging: collaboration consists of {collaboration.num_peers} peers.")
-            return
+            return tr_loss / self.local_steps_accumulated
         mean_samples_per_worker = collaboration.samples_accumulated / collaboration.num_peers
         grad_scale = self.local_samples_accumulated / mean_samples_per_worker / self.local_steps_accumulated
 
@@ -151,7 +151,7 @@ class CollaborativeTrainer(ExtendableTrainer):
 
         if group_infos is None:
             logger.warning("Averager could not find group at this time.")
-            return
+            return tr_loss / self.local_steps_accumulated
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
             for averaged_tensor, gpu_tensor in zip(averaged_tensors, self.model.parameters()):
