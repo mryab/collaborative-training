@@ -127,7 +127,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         logger.info("Averaging parameters and gradients with peers...")
         collaboration = self.fetch_collaboration_state()
         if collaboration.num_peers <= 1:
-            logger.warning(f"Skipping averaging: collaboration consists of {collaboration.num_peers} peers.")
+            logger.info(f"Skipping averaging: collaboration consists of {collaboration.num_peers} peers.")
             return tr_loss / self.local_steps_accumulated
         mean_samples_per_worker = collaboration.samples_accumulated / collaboration.num_peers
         grad_scale = self.local_samples_accumulated / mean_samples_per_worker / self.local_steps_accumulated
