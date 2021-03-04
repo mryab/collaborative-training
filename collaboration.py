@@ -143,6 +143,9 @@ class CollaborativeTrainer(ExtendableTrainer):
                     samples_accumulated=self.local_samples_accumulated,
                     scale=self.local_samples_accumulated / mean_samples_per_worker)
         group_infos = self.averager.step(info, timeout=self.collaboration_args.averaging_step_timeout)
+        if group_infos is None:
+            logger.warning("Averaging step failed, using local updates only.")
+            return tr_loss / self.local_steps_accumulated
 
         numerator = sum(info['samples_accumulated'] * info['tr_loss'] / info['steps_accumulated']
                         for info in group_infos.values())
@@ -226,7 +229,7 @@ class CollaborativeTrainer(ExtendableTrainer):
             time.sleep(max(0, self.collaboration_state.next_fetch_time - hivemind.get_dht_time()))
 
     def get_train_dataloader(self):
-        """ ensure that each worker will have a different (random) batch order (TODO there's gotta be a better way) """
+        """ ensure that each worker will have a different (random) batch order """
         torch.manual_seed(hash(self.trainer_uuid))
         return super().get_train_dataloader()
 
