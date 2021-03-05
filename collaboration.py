@@ -26,7 +26,9 @@ class CollaborationArguments:
     metadata_expiration: float = 15  # peer's metadata will be removed if not updated in this many seconds
     target_group_size: int = 64      # maximum group size for all-reduce
     target_batch_size: int = 4096  # perform optimizer step after all peers collectively accumulate this many samples
-    listen_on: str = '[::]:*'  # network interface used for incoming communication. Default: all ipv6
+    dht_listen_on: str = '[::]:*'  # network interface used for incoming DHT communication. Default: all ipv6
+    listen_on: str = '[::]:*'  # network interface used for incoming averager communication. Default: all ipv6
+    address: Optional[str] = None
 
     min_refresh_period: float = 0.5  # wait for at least this many seconds before fetching new collaboration state
     max_refresh_period: float = 30  # wait for at most this many seconds before fetching new collaboration state
@@ -83,7 +85,10 @@ class CollaborativeTrainer(ExtendableTrainer):
         if len(collaboration_args.initial_peers) == 0:
             raise ValueError("Please specify at least one network endpoint in initial peers.")
 
-        dht = hivemind.DHT(initial_peers=list(collaboration_args.initial_peers), start=True)
+        dht = hivemind.DHT(initial_peers=list(collaboration_args.initial_peers),
+                           listen_on=self.collaboration_args.dht_listen_on,
+                           address=self.collaboration_args.address or None,
+                           start=True)
         averager = SimpleAverager(self, dht=dht, prefix=self.matchmaking_prefix,
                                   target_group_size=collaboration_args.target_group_size,
                                   throughput=collaboration_args.bandwidth,
