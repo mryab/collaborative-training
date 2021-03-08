@@ -28,7 +28,7 @@ class CollaborationArguments:
     target_batch_size: int = 4096  # perform optimizer step after all peers collectively accumulate this many samples
     dht_listen_on: str = '[::]:*'  # network interface used for incoming DHT communication. Default: all ipv6
     listen_on: str = '[::]:*'  # network interface used for incoming averager communication. Default: all ipv6
-    address: Optional[str] = None
+    endpoint: Optional[str] = None
 
     min_refresh_period: float = 0.5  # wait for at least this many seconds before fetching new collaboration state
     max_refresh_period: float = 30  # wait for at most this many seconds before fetching new collaboration state
@@ -87,7 +87,7 @@ class CollaborativeTrainer(ExtendableTrainer):
 
         dht = hivemind.DHT(initial_peers=list(collaboration_args.initial_peers),
                            listen_on=self.collaboration_args.dht_listen_on,
-                           address=self.collaboration_args.address or None,
+                           endpoint=self.collaboration_args.endpoint or None,
                            start=True)
         averager = SimpleAverager(self, dht=dht, prefix=self.matchmaking_prefix,
                                   target_group_size=collaboration_args.target_group_size,
