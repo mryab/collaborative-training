@@ -90,8 +90,8 @@ def main():
         logger.info(f'Loading model from {latest_checkpoint_dir}')
         model = AlbertForPreTraining.from_pretrained(latest_checkpoint_dir)
     else:
-        logger.info(f'Training from scratch')
-        model = AlbertForPreTraining(config)
+        logger.info(f'Training from some pretrained version')
+        model = AlbertForPreTraining.from_pretrained('albert-large-v2')
         model.resize_token_embeddings(len(tokenizer))
 
     tokenized_dataset_path = Path(dataset_args.dataset_path)
