@@ -169,7 +169,7 @@ class CollaborativeTrainer(ExtendableTrainer):
             for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
                 averaged_tensor *= normalization_coefficient
                 local_tensor[...] = averaged_tensor.to(dtype=local_tensor.dtype, device=local_tensor.device)
-        logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss.item():.3f}]")
+        logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss:.3f}]")
         return torch.tensor(average_loss)
 
     def on_train_end(self, *args, **kwargs):
