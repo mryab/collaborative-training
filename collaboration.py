@@ -161,7 +161,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         sum_of_weights = sum(info['scale'] for info in group_infos.values()
                              if isinstance(info.get('scale'), float))
         normalization_coefficient = (len(group_infos) / sum_of_weights) if sum_of_weights > 0 else 1.0
-        print('>>NORMALIZATION_COEFFICIENT=:', normalization_coefficient)
+        logger.info(f'>>NORMALIZATION_COEFFICIENT = {normalization_coefficient}')
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
 
