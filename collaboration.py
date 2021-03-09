@@ -148,10 +148,9 @@ class CollaborativeTrainer(ExtendableTrainer):
             for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
                 averaged_tensor[...] = local_tensor.detach().cpu().float() * weight
 
-        info = dict(tr_loss=tr_loss.item(),
+        info = dict(tr_loss=tr_loss.item(), weight=weight,
                     steps_accumulated=self.local_steps_accumulated,
-                    samples_accumulated=self.local_samples_accumulated,
-                    weight=weight)
+                    samples_accumulated=self.local_samples_accumulated)
         group_infos = self.averager.step(info, timeout=self.collaboration_args.averaging_step_timeout)
         if group_infos is None:
             logger.warning("Averaging step failed, using local updates only.")
