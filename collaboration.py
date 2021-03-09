@@ -260,7 +260,7 @@ class CollaborativeTrainer(ExtendableTrainer):
 
         for peer, info in group_infos.items():
             loss, samples, steps = info.get('tr_loss'), info.get('samples_accumulated'), info.get('steps_accumulated')
-            if isinstance(loss, float) and isinstance(samples, float) and isinstance(steps, float) and steps > 0:
+            if isinstance(loss, float) and isinstance(samples, int) and isinstance(steps, int) and steps > 0:
                 numerator += loss * samples / steps
                 denominator += samples
             else:
