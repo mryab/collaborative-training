@@ -142,13 +142,11 @@ class CollaborativeTrainer(ExtendableTrainer):
         weight = self.local_samples_accumulated / mean_samples_per_worker
         local_tensors = [tensor for tensor in self.model.parameters()]
         local_tensors.extend([tensor.grad for tensor in self.model.parameters()])
-        logger.info(f'LOCAL-BEFORE: {local_tensors[-5]}')
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
             assert len(averaged_tensors) == len(local_tensors)
             for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
                 averaged_tensor[...] = local_tensor.detach().cpu().float() * weight
-            logger.info(f'AVG-BEGORE: {averaged_tensors[-5]}')
 
         info = dict(tr_loss=tr_loss.item(),
                     steps_accumulated=self.local_steps_accumulated,
@@ -168,12 +166,10 @@ class CollaborativeTrainer(ExtendableTrainer):
         normalization_coefficient = (len(group_infos) / sum_of_weights) if sum_of_weights > 0 else 1.0
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
-            logger.info(f'AVG-AFTER: {averaged_tensors[-5]}')
             assert len(averaged_tensors) == len(local_tensors)
             for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
                 averaged_tensor *= normalization_coefficient
                 local_tensor[...] = averaged_tensor.to(dtype=local_tensor.dtype, device=local_tensor.device)
-            logger.info(f'LOCAL-AFTER: {list(self.model.parameters())[-5].grad}')
         logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss:.3f}]")
         return torch.tensor(average_loss)
 
