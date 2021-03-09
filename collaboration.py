@@ -135,13 +135,15 @@ class CollaborativeTrainer(ExtendableTrainer):
             logger.info(f"Skipping averaging: collaboration consists of {collaboration.num_peers} peers.")
             return tr_loss / self.local_steps_accumulated
         mean_samples_per_worker = collaboration.samples_accumulated / collaboration.num_peers
-        grad_scale = self.local_samples_accumulated / mean_samples_per_worker / self.local_steps_accumulated
+        weight = self.local_samples_accumulated / mean_samples_per_worker / self.local_steps_accumulated
+
+        local_tensors = [tensor for tensor in self.model.parameters()]
+        local_tensors += [tensor.grad for tensor in self.model.parameters()]
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
-            tensors_for_averaging = [tensor.cpu().float() for tensor in self.model.parameters()]
-            tensors_for_averaging += [tensor.grad.cpu().float() * grad_scale for tensor in self.model.parameters()]
-            for averaged_tensor, gpu_tensor in zip(averaged_tensors, self.model.parameters()):
-                averaged_tensor[...] = gpu_tensor
+            assert len(averaged_tensors) == len(local_tensors)
+            for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
+                averaged_tensor[...] = local_tensor.detach().cpu().float() * weight
 
         info = dict(tr_loss=tr_loss.item(),
                     steps_accumulated=self.local_steps_accumulated,
@@ -152,18 +154,21 @@ class CollaborativeTrainer(ExtendableTrainer):
             logger.warning("Averaging step failed, using local updates only.")
             return tr_loss / self.local_steps_accumulated
 
-        numerator = sum(info['samples_accumulated'] * info['tr_loss'] / info['steps_accumulated']
-                        for info in group_infos.values())
-        denominator = sum(info['samples_accumulated'] for info in group_infos.values())
-        average_loss = torch.tensor(numerator / denominator)
+        average_loss = self.estimate_average_loss(group_infos) or tr_loss / self.local_steps_accumulated
 
-        if group_infos is None:
-            logger.warning("Averager could not find group at this time.")
-            return tr_loss / self.local_steps_accumulated
+        # we averaged parameters multiplied by grad scale (aka weights). Time to compensate for that
+        # by dividing weights by the sum of grad scales over the entire group.
+        sum_of_weights = sum(info['scale'] for info in group_infos.values()
+                             if isinstance(info.get('scale'), float))
+        normalization_coefficient = (len(group_infos) / sum_of_weights) if sum_of_weights > 0 else 1.0
+        print('>>NORMALIZATION_COEFFICIENT=:', normalization_coefficient)
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
-            for averaged_tensor, gpu_tensor in zip(averaged_tensors, self.model.parameters()):
-                gpu_tensor[...] = averaged_tensor
+
+            assert len(averaged_tensors) == len(local_tensors)
+            for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
+                averaged_tensor *= normalization_coefficient
+                local_tensor[...] = averaged_tensor.to(dtype=local_tensor.dtype, device=local_tensor.device)
         logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss.item():.3f}]")
         return average_loss
 
@@ -248,3 +253,21 @@ class CollaborativeTrainer(ExtendableTrainer):
     def is_valid_peer_state(state):
         return isinstance(state, (list, tuple)) and len(state) == 4 \
                and all(map(isinstance, state, (int, int, float, float)))
+
+    @staticmethod
+    def estimate_average_loss(group_infos: dict) -> Optional[float]:
+        numerator, denominator = 0.0, 0.0
+
+        for peer, info in group_infos.items():
+            loss, samples, steps = info.get('tr_loss'), info.get('samples_accumulated'), info.get('steps_accumulated')
+            if isinstance(loss, float) and isinstance(samples, float) and isinstance(steps, float) and steps > 0:
+                numerator += loss * samples / steps
+                denominator += samples
+            else:
+                logger.info(f'Skipped peer {peer} due to invalid info {info}')
+
+        if denominator > 0:
+            return numerator / denominator
+        else:
+            logger.info("Failed to estimate average loss: no valid peer infos in group")
+            return None
