@@ -127,7 +127,7 @@ class CollaborativeTrainer(ExtendableTrainer):
                 logger.info(f"Optimizer step: done! Accumulating for step {self.local_step}...")
         return tr_loss
 
-    def averager_step(self, tr_loss):
+    def averager_step(self, tr_loss: torch.Tensor) -> torch.Tensor:
         """ Average parameters and gradients with other peers """
         logger.info("Averaging parameters and gradients with peers...")
         collaboration = self.fetch_collaboration_state()
@@ -170,7 +170,7 @@ class CollaborativeTrainer(ExtendableTrainer):
                 averaged_tensor *= normalization_coefficient
                 local_tensor[...] = averaged_tensor.to(dtype=local_tensor.dtype, device=local_tensor.device)
         logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss.item():.3f}]")
-        return average_loss
+        return torch.tensor(average_loss)
 
     def on_train_end(self, *args, **kwargs):
         self.is_alive = False
