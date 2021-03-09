@@ -120,6 +120,9 @@ class CollaborativeTrainer(ExtendableTrainer):
         elif self.collaboration_state.should_perform_step:
             with self.lock:
                 logger.info(f"Running optimizer step {self.local_step}")
+                for tensor in self.model.parameters():
+                    tensor.grad[...] /= self.local_steps_accumulated
+
                 average_tr_loss = self.averager_step(tr_loss)
                 tr_loss = self.optimizer_step(epoch, step, average_tr_loss, trial, steps_in_epoch)
                 self.local_samples_accumulated = self.local_steps_accumulated = 0
@@ -135,20 +138,22 @@ class CollaborativeTrainer(ExtendableTrainer):
             logger.info(f"Skipping averaging: collaboration consists of {collaboration.num_peers} peers.")
             return tr_loss / self.local_steps_accumulated
         mean_samples_per_worker = collaboration.samples_accumulated / collaboration.num_peers
-        weight = self.local_samples_accumulated / mean_samples_per_worker / self.local_steps_accumulated
 
+        weight = self.local_samples_accumulated / mean_samples_per_worker
         local_tensors = [tensor for tensor in self.model.parameters()]
-        local_tensors += [tensor.grad for tensor in self.model.parameters()]
+        local_tensors.extend([tensor.grad for tensor in self.model.parameters()])
+        logger.info('LOCAL-BEFORE:', local_tensors[-4])
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
             assert len(averaged_tensors) == len(local_tensors)
             for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
                 averaged_tensor[...] = local_tensor.detach().cpu().float() * weight
+            logger.info('AVG-BEGORE:', averaged_tensors[-4])
 
         info = dict(tr_loss=tr_loss.item(),
                     steps_accumulated=self.local_steps_accumulated,
                     samples_accumulated=self.local_samples_accumulated,
-                    scale=self.local_samples_accumulated / mean_samples_per_worker)
+                    weight=weight)
         group_infos = self.averager.step(info, timeout=self.collaboration_args.averaging_step_timeout)
         if group_infos is None:
             logger.warning("Averaging step failed, using local updates only.")
@@ -158,16 +163,17 @@ class CollaborativeTrainer(ExtendableTrainer):
 
         # we averaged parameters multiplied by grad scale (aka weights). Time to compensate for that
         # by dividing weights by the sum of grad scales over the entire group.
-        sum_of_weights = sum(info['scale'] for info in group_infos.values()
-                             if isinstance(info.get('scale'), float))
+        sum_of_weights = sum(info['weight'] for info in group_infos.values()
+                             if isinstance(info.get('weight'), float))
         normalization_coefficient = (len(group_infos) / sum_of_weights) if sum_of_weights > 0 else 1.0
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
-
+            logger.info('AVG-AFTER:', averaged_tensors[-4])
             assert len(averaged_tensors) == len(local_tensors)
             for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
                 averaged_tensor *= normalization_coefficient
                 local_tensor[...] = averaged_tensor.to(dtype=local_tensor.dtype, device=local_tensor.device)
+            logger.info('LOCAL-AFTER:', list(self.model.parameters())[-4].grad)
         logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss:.3f}]")
         return torch.tensor(average_loss)
 
