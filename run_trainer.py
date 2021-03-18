@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DatasetArguments:
     dataset_path: Optional[str] = field(default='./data/albert_tokenized_wikitext',
-                                   metadata={"help": "Path to the dataset"})
+                                        metadata={"help": "Path to the dataset"})
     tokenizer_path: Optional[str] = field(default='./data/tokenizer',
                                           metadata={"help": "Path to the dataset"})
     config_path: Optional[str] = field(default='./data/albert_config_large.json',
