@@ -112,6 +112,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         self.local_samples_accumulated += local_batch_size
         self.local_steps_accumulated += 1
         self.performance_ema.update(num_processed=local_batch_size)
+        print('REPORT!')
         run_in_background(self.report_training_progress)
         if self.collaboration_state.optimizer_step > self.local_step:
             with self.lock, self.performance_ema.pause():
@@ -195,6 +196,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         assert self.is_valid_peer_state(local_state_info)
         self.dht.store(self.training_progess_key, subkey=self.trainer_uuid, value=local_state_info,
                        expiration_time=current_time + self.collaboration_args.metadata_expiration, return_future=True)
+        print('REPORTED!')
 
     def fetch_collaboration_state(self) -> CollaborationState:
         """ Read performance statistics reported by peers, estimate progress towards next batch """
