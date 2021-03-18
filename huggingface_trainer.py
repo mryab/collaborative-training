@@ -144,9 +144,8 @@ class ExtendableTrainer(Trainer, TrainerCallback):
             model = torch.nn.DataParallel(model)
 
         # Distributed training (should be after apex fp16 initialization)
-        if self.sharded_dpp:
-            model = ShardedDDP(model, self.optimizer)
-        elif self.args.local_rank != -1:
+        if self.args.local_rank != -1:
+            raise NotImplementedError("DDP training is not supported yet!")
             model = torch.nn.parallel.DistributedDataParallel(
                 model,
                 device_ids=[self.args.local_rank],
