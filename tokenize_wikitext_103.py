@@ -1,17 +1,12 @@
 #!/usr/bin/env python
 import random
 from collections import defaultdict
+from functools import partial
 from multiprocessing import cpu_count
 
 import nltk
 from datasets import load_dataset
 from transformers import AlbertTokenizerFast
-
-random.seed(0)
-nltk.download('punkt')
-tokenizer = AlbertTokenizerFast.from_pretrained('albert-large-v2')
-
-wikitext = load_dataset('wikitext', 'wikitext-103-v1', cache_dir='.data_cache')
 
 
 def create_instances_from_document(tokenizer, document, max_seq_length):
@@ -76,7 +71,7 @@ def create_instances_from_document(tokenizer, document, max_seq_length):
     return instances
 
 
-def tokenize_function(examples):
+def tokenize_function(tokenizer, examples):
     # Remove empty texts
     texts = (text for text in examples["text"] if len(text) > 0 and not text.isspace())
 
@@ -91,11 +86,18 @@ def tokenize_function(examples):
     return new_examples
 
 
-tokenized_datasets = wikitext.map(
-    tokenize_function,
-    batched=True,
-    num_proc=cpu_count(),
-    remove_columns=["text"],
-)
+if __name__ == '__main__':
+    random.seed(0)
+    nltk.download('punkt')
+    tokenizer = AlbertTokenizerFast.from_pretrained('albert-large-v2')
+    wikitext = load_dataset('wikitext', 'wikitext-103-v1', cache_dir='./data/cache')
 
-tokenized_datasets.save_to_disk('./data/albert_tokenized_wikitext')
+    tokenized_datasets = wikitext.map(
+        partial(tokenize_function, tokenizer),
+        batched=True,
+        num_proc=cpu_count(),
+        remove_columns=["text"],
+    )
+
+    tokenized_datasets.save_to_disk('./data/albert_tokenized_wikitext')
+    tokenizer.save_pretrained('./data/tokenizer')
