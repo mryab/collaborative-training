@@ -123,6 +123,9 @@ class CollaborativeTrainer(ExtendableTrainer):
         elif self.collaboration_state.should_perform_step:
             with self.lock:
                 logger.info(f"Running optimizer step {self.local_step}")
+                for tensor in self.model.parameters():
+                    tensor.grad[...] /= self.local_steps_accumulated
+
                 average_tr_loss = self.averager_step(tr_loss)
                 tr_loss = self.optimizer_step(epoch, step, average_tr_loss, trial, steps_in_epoch)
                 self.local_samples_accumulated = self.local_steps_accumulated = 0
@@ -130,7 +133,7 @@ class CollaborativeTrainer(ExtendableTrainer):
                 logger.info(f"Optimizer step: done! Accumulating for step {self.local_step}...")
         return tr_loss
 
-    def averager_step(self, tr_loss):
+    def averager_step(self, tr_loss: torch.Tensor) -> torch.Tensor:
         """ Average parameters and gradients with other peers """
         logger.info("Averaging parameters and gradients with peers...")
         collaboration = self.fetch_collaboration_state()
@@ -138,37 +141,39 @@ class CollaborativeTrainer(ExtendableTrainer):
             logger.info(f"Skipping averaging: collaboration consists of {collaboration.num_peers} peers.")
             return tr_loss / self.local_steps_accumulated
         mean_samples_per_worker = collaboration.samples_accumulated / collaboration.num_peers
-        grad_scale = self.local_samples_accumulated / mean_samples_per_worker / self.local_steps_accumulated
+
+        weight = self.local_samples_accumulated / mean_samples_per_worker
+        local_tensors = [tensor for tensor in self.model.parameters()]
+        local_tensors.extend([tensor.grad for tensor in self.model.parameters()])
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
-            tensors_for_averaging = [tensor.cpu().float() for tensor in self.model.parameters()]
-            tensors_for_averaging += [tensor.grad.cpu().float() * grad_scale for tensor in self.model.parameters()]
-            for averaged_tensor, gpu_tensor in zip(averaged_tensors, self.model.parameters()):
-                averaged_tensor[...] = gpu_tensor
+            assert len(averaged_tensors) == len(local_tensors)
+            for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
+                averaged_tensor[...] = local_tensor.detach().cpu().float() * weight
 
-        info = dict(tr_loss=tr_loss.item(),
+        info = dict(tr_loss=tr_loss.item(), weight=weight,
                     steps_accumulated=self.local_steps_accumulated,
-                    samples_accumulated=self.local_samples_accumulated,
-                    scale=self.local_samples_accumulated / mean_samples_per_worker)
+                    samples_accumulated=self.local_samples_accumulated)
         group_infos = self.averager.step(info, timeout=self.collaboration_args.averaging_step_timeout)
         if group_infos is None:
             logger.warning("Averaging step failed, using local updates only.")
             return tr_loss / self.local_steps_accumulated
 
-        numerator = sum(info['samples_accumulated'] * info['tr_loss'] / info['steps_accumulated']
-                        for info in group_infos.values())
-        denominator = sum(info['samples_accumulated'] for info in group_infos.values())
-        average_loss = torch.tensor(numerator / denominator)
+        average_loss = self.estimate_average_loss(group_infos) or (tr_loss / self.local_steps_accumulated)
 
-        if group_infos is None:
-            logger.warning("Averager could not find group at this time.")
-            return tr_loss / self.local_steps_accumulated
+        # we averaged parameters multiplied by grad scale (aka weights). Time to compensate for that
+        # by dividing weights by the sum of grad scales over the entire group.
+        sum_of_weights = sum(info['weight'] for info in group_infos.values()
+                             if isinstance(info.get('weight'), float))
+        normalization_coefficient = (len(group_infos) / sum_of_weights) if sum_of_weights > 0 else 1.0
 
         with torch.no_grad(), self.averager.get_tensors() as averaged_tensors:
-            for averaged_tensor, gpu_tensor in zip(averaged_tensors, self.model.parameters()):
-                gpu_tensor[...] = averaged_tensor
-        logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss.item():.3f}]")
-        return average_loss
+            assert len(averaged_tensors) == len(local_tensors)
+            for averaged_tensor, local_tensor in zip(averaged_tensors, local_tensors):
+                averaged_tensor *= normalization_coefficient
+                local_tensor[...] = averaged_tensor.to(dtype=local_tensor.dtype, device=local_tensor.device)
+        logger.info(f"Averaging with peers: done! [group size = {len(group_infos)}, loss = {average_loss:.3f}]")
+        return torch.tensor(average_loss)
 
     def on_train_end(self, *args, **kwargs):
         self.is_alive = False
@@ -251,3 +256,21 @@ class CollaborativeTrainer(ExtendableTrainer):
     def is_valid_peer_state(state):
         return isinstance(state, (list, tuple)) and len(state) == 4 \
                and all(map(isinstance, state, (int, int, float, float)))
+
+    @staticmethod
+    def estimate_average_loss(group_infos: dict) -> Optional[float]:
+        numerator, denominator = 0.0, 0.0
+
+        for peer, info in group_infos.items():
+            loss, samples, steps = info.get('tr_loss'), info.get('samples_accumulated'), info.get('steps_accumulated')
+            if isinstance(loss, float) and isinstance(samples, int) and isinstance(steps, int) and steps > 0:
+                numerator += loss * samples / steps
+                denominator += samples
+            else:
+                logger.info(f'Skipped peer {peer} due to invalid info {info}')
+
+        if denominator > 0:
+            return numerator / denominator
+        else:
+            logger.info("Failed to estimate average loss: no valid peer infos in group")
+            return None
