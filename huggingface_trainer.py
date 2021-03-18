@@ -145,7 +145,7 @@ class ExtendableTrainer(Trainer, TrainerCallback):
 
         # Distributed training (should be after apex fp16 initialization)
         if self.args.local_rank != -1:
-            raise NotImplementedError("DDP training is not supported yet!")
+
             model = torch.nn.parallel.DistributedDataParallel(
                 model,
                 device_ids=[self.args.local_rank],
@@ -158,6 +158,7 @@ class ExtendableTrainer(Trainer, TrainerCallback):
             )
             # find_unused_parameters breaks checkpointing as per
             # https://github.com/huggingface/transformers/pull/4659#issuecomment-643356021
+            raise NotImplementedError("DDP training is not supported yet!")
 
         # for the rest of this function `model` is the outside model, whether it was wrapped or not
         if model is not self.model:

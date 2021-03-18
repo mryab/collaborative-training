@@ -216,7 +216,8 @@ class CollaborativeTrainer(ExtendableTrainer):
 
         num_peers = len(valid_peer_states)
         num_clients = sum(is_client for *_, is_client in valid_peer_states)
-        global_optimizer_step = max(self.local_step, max(step for step, *_ in valid_peer_states))
+        global_optimizer_step = max(self.local_step, *(step for step, *_, is_client in
+                                                       valid_peer_states if not is_client))
         total_samples_accumulated = estimated_curent_samples = total_samples_per_second = 0
 
         for opt_step, samples_accumulated, samples_per_second, timestep, is_client in valid_peer_states:
