@@ -28,7 +28,8 @@ class CollaborationArguments:
     target_batch_size: int = 4096  # perform optimizer step after all peers collectively accumulate this many samples
     dht_listen_on: str = '[::]:*'  # network interface used for incoming DHT communication. Default: all ipv6
     listen_on: str = '[::]:*'  # network interface used for incoming averager communication. Default: all ipv6
-    endpoint: Optional[str] = None
+    endpoint: Optional[str] = None  # this node's public IP, used when the node is behind a proxy
+    client_mode: bool = False  # if True, runs training without incoming connections, in a firewall-compatible mode
 
     min_refresh_period: float = 0.5  # wait for at least this many seconds before fetching new collaboration state
     max_refresh_period: float = 30  # wait for at most this many seconds before fetching new collaboration state
@@ -88,11 +89,13 @@ class CollaborativeTrainer(ExtendableTrainer):
         dht = hivemind.DHT(initial_peers=list(collaboration_args.initial_peers),
                            listen_on=self.collaboration_args.dht_listen_on,
                            endpoint=self.collaboration_args.endpoint or None,
+                           listen=not self.collaboration_args.client_mode,
                            start=True)
         averager = SimpleAverager(self, dht=dht, prefix=self.matchmaking_prefix,
                                   target_group_size=collaboration_args.target_group_size,
                                   throughput=collaboration_args.bandwidth,
                                   compression_type=hivemind.utils.CompressionType.FLOAT16,
+                                  listen=not self.collaboration_args.client_mode,
                                   averaging_expiration=collaboration_args.averaging_expiration, start=True)
         return dht, averager
 
@@ -177,7 +180,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         """ Declare this trainer's current step and the number of batches accumulated towards the next step """
         current_time = hivemind.get_dht_time()
         local_state_info = [self.local_step, self.local_samples_accumulated,
-                            self.performance_ema.samples_per_second, current_time]
+                            self.performance_ema.samples_per_second, current_time, self.collaboration_args.client_mode]
         assert self.is_valid_peer_state(local_state_info)
         self.dht.store(self.training_progess_key, subkey=self.trainer_uuid, value=local_state_info,
                        expiration_time=current_time + self.collaboration_args.metadata_expiration, return_future=True)
