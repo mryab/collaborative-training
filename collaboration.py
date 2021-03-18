@@ -193,7 +193,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         local_state_info = [self.local_step, self.local_samples_accumulated,
                             self.performance_ema.samples_per_second, current_time,
                             self.collaboration_args.client_mode]
-        assert self.is_valid_peer_state(local_state_info)
+        assert self.is_valid_peer_state(local_state_info), local_state_info
         self.dht.store(self.training_progess_key, subkey=self.trainer_uuid, value=local_state_info,
                        expiration_time=current_time + self.collaboration_args.metadata_expiration, return_future=True)
 
