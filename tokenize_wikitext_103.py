@@ -20,7 +20,7 @@ def create_instances_from_document(tokenizer, document, max_seq_length):
     current_chunk = []
     current_length = 0
 
-    segmented_sents = nltk.sent_tokenize(document)
+    segmented_sents = list(nltk.sent_tokenize(document))
 
     for i, sent in enumerate(segmented_sents):
         current_chunk.append(sent)
