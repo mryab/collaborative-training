@@ -263,7 +263,7 @@ class CollaborativeTrainer(ExtendableTrainer):
 
     @staticmethod
     def is_valid_peer_state(state):
-        return isinstance(state, (list, tuple)) and len(state) == 4 \
+        return isinstance(state, (list, tuple)) and len(state) == 5 \
                and all(map(isinstance, state, (int, int, float, float, bool)))
 
     @staticmethod
