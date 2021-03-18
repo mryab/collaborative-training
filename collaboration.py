@@ -48,6 +48,7 @@ class CollaborationState:
     samples_accumulated: int
     target_batch_size: int
     num_peers: int
+    num_clients: int
     eta_next_step: float
     next_fetch_time: float
 
@@ -112,16 +113,15 @@ class CollaborativeTrainer(ExtendableTrainer):
         self.local_steps_accumulated += 1
         self.performance_ema.update(num_processed=local_batch_size)
         run_in_background(self.report_training_progress)
-
         if self.collaboration_state.optimizer_step > self.local_step:
-            with self.lock:
+            with self.lock, self.performance_ema.pause():
                 logger.info(f"Out of sync (local_step={self.local_step}, global={self.collaboration_state.optimizer_step})")
                 self.averager.load_state_from_peers()
                 self.local_samples_accumulated = self.local_steps_accumulated = 0
                 self.optimizer.zero_grad()
 
         elif self.collaboration_state.should_perform_step:
-            with self.lock:
+            with self.lock, self.performance_ema.pause():
                 logger.info(f"Running optimizer step {self.local_step}")
                 for tensor in self.model.parameters():
                     tensor.grad[...] /= self.local_steps_accumulated
@@ -137,9 +137,14 @@ class CollaborativeTrainer(ExtendableTrainer):
         """ Average parameters and gradients with other peers """
         logger.info("Averaging parameters and gradients with peers...")
         collaboration = self.fetch_collaboration_state()
+
         if collaboration.num_peers <= 1:
             logger.info(f"Skipping averaging: collaboration consists of {collaboration.num_peers} peers.")
             return tr_loss / self.local_steps_accumulated
+        if self.collaboration_args.client_mode and collaboration.num_clients == collaboration.num_peers:
+            logger.info(f"Skipping averaging: there is no peer capable of incoming connections.")
+            return tr_loss / self.local_steps_accumulated
+
         mean_samples_per_worker = collaboration.samples_accumulated / collaboration.num_peers
 
         weight = self.local_samples_accumulated / mean_samples_per_worker
@@ -185,7 +190,8 @@ class CollaborativeTrainer(ExtendableTrainer):
         """ Declare this trainer's current step and the number of batches accumulated towards the next step """
         current_time = hivemind.get_dht_time()
         local_state_info = [self.local_step, self.local_samples_accumulated,
-                            self.performance_ema.samples_per_second, current_time, self.collaboration_args.client_mode]
+                            self.performance_ema.samples_per_second, current_time,
+                            self.collaboration_args.client_mode]
         assert self.is_valid_peer_state(local_state_info)
         self.dht.store(self.training_progess_key, subkey=self.trainer_uuid, value=local_state_info,
                        expiration_time=current_time + self.collaboration_args.metadata_expiration, return_future=True)
@@ -199,19 +205,20 @@ class CollaborativeTrainer(ExtendableTrainer):
         if not isinstance(response, dict) or len(response) == 0:
             logger.warning(f"Found no active peers: {response}")
             local_eta_next_step = max(0, target_batch_size - self.local_steps_accumulated) / self.performance_ema.samples_per_second
-            return CollaborationState(self.local_step, self.local_samples_accumulated, target_batch_size, 0,
-                                      eta_next_step=current_time + local_eta_next_step,
+            return CollaborationState(self.local_step, self.local_samples_accumulated, target_batch_size,
+                                      num_peers=0, num_clients=0, eta_next_step=current_time + local_eta_next_step,
                                       next_fetch_time=current_time + self.collaboration_args.default_refresh_period)
 
         valid_peer_states = [peer_state.value for peer_state in response.values()
                              if isinstance(peer_state, ValueWithExpiration)
                              and self.is_valid_peer_state(peer_state.value)]
-        global_optimizer_step = max(self.local_step, max(step for step, *_ in valid_peer_states))
 
         num_peers = len(valid_peer_states)
+        num_clients = sum(is_client for *_, is_client in valid_peer_states)
+        global_optimizer_step = max(self.local_step, max(step for step, *_ in valid_peer_states))
         total_samples_accumulated = estimated_curent_samples = total_samples_per_second = 0
 
-        for opt_step, samples_accumulated, samples_per_second, timestep in valid_peer_states:
+        for opt_step, samples_accumulated, samples_per_second, timestep, is_client in valid_peer_states:
             total_samples_per_second += samples_per_second
             if opt_step == global_optimizer_step:
                 total_samples_accumulated += samples_accumulated
@@ -228,9 +235,10 @@ class CollaborativeTrainer(ExtendableTrainer):
                                            a_max=self.collaboration_args.max_refresh_period))
         logger.info(f"Collaboration accumulated {total_samples_accumulated} samples from {num_peers} peers; "
                     f"ETA {estimated_time_to_next_step:.2f} seconds (refresh in {time_to_next_fetch:.2f}s.)")
-        return CollaborationState(global_optimizer_step, total_samples_accumulated, target_batch_size=target_batch_size,
-                                  num_peers=num_peers, eta_next_step=current_time + estimated_time_to_next_step,
-                                  next_fetch_time=current_time + time_to_next_fetch)
+        return CollaborationState(
+            global_optimizer_step, total_samples_accumulated, target_batch_size=target_batch_size,
+            num_peers=num_peers, num_clients=num_clients, eta_next_step=current_time + estimated_time_to_next_step,
+            next_fetch_time=current_time + time_to_next_fetch)
 
     def check_collaboration_state_periodically(self):
         """
@@ -255,7 +263,7 @@ class CollaborativeTrainer(ExtendableTrainer):
     @staticmethod
     def is_valid_peer_state(state):
         return isinstance(state, (list, tuple)) and len(state) == 4 \
-               and all(map(isinstance, state, (int, int, float, float)))
+               and all(map(isinstance, state, (int, int, float, float, bool)))
 
     @staticmethod
     def estimate_average_loss(group_infos: dict) -> Optional[float]:

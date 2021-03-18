@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import random
 from collections import defaultdict
 from multiprocessing import cpu_count
@@ -8,7 +9,7 @@ from transformers import AlbertTokenizerFast
 
 random.seed(0)
 nltk.download('punkt')
-tokenizer = AlbertTokenizerFast.from_pretrained('albert-base-v2')
+tokenizer = AlbertTokenizerFast.from_pretrained('albert-large-v2')
 
 wikitext = load_dataset('wikitext', 'wikitext-103-v1', cache_dir='.data_cache')
 
@@ -97,4 +98,4 @@ tokenized_datasets = wikitext.map(
     remove_columns=["text"],
 )
 
-tokenized_datasets.save_to_disk('albert_tokenized_wikitext')
+tokenized_datasets.save_to_disk('./data/albert_tokenized_wikitext')

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class DatasetArguments:
-    dataset_path: Optional[str] = field(default='./data/albert_tokenized_bookcorpusopen',
+    dataset: Optional[str] = field(default='./data/albert_tokenized_bookcorpusopen',
                                         metadata={"help": "Path to the dataset"})
     tokenizer_path: Optional[str] = field(default='./data/tokenizer',
                                           metadata={"help": "Path to the dataset"})
