@@ -19,11 +19,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DatasetArguments:
     dataset_path: Optional[str] = field(default='./data/albert_tokenized_wikitext',
-                                        metadata={"help": "Path to the dataset"})
+                                        metadata={"help": "Path to the tokenized dataset"})
     tokenizer_path: Optional[str] = field(default='./data/tokenizer',
-                                          metadata={"help": "Path to the dataset"})
-    config_path: Optional[str] = field(default='./data/albert_config_large.json',
-                                       metadata={"help": "Path to the dataset"})
+                                          metadata={"help": "Path to the tokenizer"})
+    config_path: Optional[str] = field(
+        default='https://s3.amazonaws.com/models.huggingface.co/bert/albert-large-v2-config.json',
+        metadata={"help": "Path to the model config"})
     cache_dir: Optional[str] = field(default='./data', metadata={"help": "Path to the cache"})
 
 

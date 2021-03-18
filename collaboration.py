@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CollaborationArguments:
     initial_peers: str  # one or more peers (comma-separated) that will welcome you into the collaboration
-    dht_key_for_averaging: str = 'my_experiment_name'  # a unique identifier of this experimental run's metadata
+    dht_key_for_averaging: str = 'colab_wikitext'  # a unique identifier of this experimental run's metadata
     averaging_expiration: float = 3.0  # averaging group will expire after this many seconds
     averaging_step_timeout: float = 30.0  # give up averaging step after this many seconds
     metadata_expiration: float = 15  # peer's metadata will be removed if not updated in this many seconds
