@@ -112,7 +112,7 @@ class CollaborativeTrainer(ExtendableTrainer):
         self.local_samples_accumulated += local_batch_size
         self.local_steps_accumulated += 1
         self.performance_ema.update(num_processed=local_batch_size)
-        self.report_training_progress()#TODO
+        hivemind.run_in_background(self.report_training_progress)
 
         if self.collaboration_state.optimizer_step > self.local_step:
             with self.lock, self.performance_ema.pause():
