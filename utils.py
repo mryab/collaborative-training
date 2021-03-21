@@ -1,3 +1,4 @@
+import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain
@@ -8,6 +9,7 @@ import hivemind
 from hivemind.utils import nested_flatten, nested_pack
 from transformers import Trainer
 
+logger = logging.getLogger(__name__)
 
 class SimpleAverager(hivemind.DecentralizedAverager):
     """ A daemon that runs decentralized averaging of model parameters and gradients """
@@ -20,33 +22,33 @@ class SimpleAverager(hivemind.DecentralizedAverager):
         averaged_tensors += tuple(torch.zeros_like(tensor) for tensor in averaged_tensors)
 
         super().__init__(averaged_tensors=averaged_tensors, **kwargs)
-        print('Averager is created')
+        logger.info('Averager is created')
 
     def get_current_state(self):
         """
         Get current model/optimizer state and when requested by a newbie peer. executed in the host process.
         :returns: a tuple of (serializable_small_metadata, sequence of torch tensors)
         """
-        print('Getting current state')
+        logger.info('Getting current state')
         try:
             with torch.no_grad():
                 model_parameters = [x.cpu() for x in self.trainer.model.parameters()]
-                print('OK model parameters')
+                logger.info('OK model parameters')
                 optimizer_metadata, optimizer_tensors = dump_optimizer_state(self.trainer.optimizer)
-                print('OK optimizer state')
+                logger.info('OK optimizer state')
 
             metadata = dict(step=self.trainer.state.global_step, group_bits=self.get_group_bits(),
                             optimizer_metadata=optimizer_metadata)
 
-            print('OK metadata')
+            logger.info('OK metadata')
         except Exception as e:
-            print('ERROR', e)
+            logger.info('ERROR' + str(e))
 
         return metadata, list(chain(model_parameters, optimizer_tensors))
 
     def load_state_from_peers(self, **kwargs):
         """ Attempt to download the latest optimizer state from peers and update trainer parameters/statistics """
-        print('Loading state from peers')
+        logger.info('Loading state from peers')
         loadad_state = super().load_state_from_peers(**kwargs)
         if loadad_state is None:
             return
@@ -60,15 +62,15 @@ class SimpleAverager(hivemind.DecentralizedAverager):
                     local_param[...] = loaded_param
                 load_optimizer_state(self.trainer.optimizer, metadata['optimizer_metadata'], opt_tensors)
 
-            print('Optimizer is loaded')
-            print(self.trainer.optimizer)
+            logger.info('Optimizer is loaded')
+            logger.info(str(self.trainer.optimizer))
 
             collaboration_step = metadata['step']
             while self.trainer.state.global_step < collaboration_step:
                 self.trainer.state.global_step += 1
                 self.trainer.lr_scheduler.step()
         except Exception as e:
-            print('ERROR!', e)
+            logger.info('ERROR!' + str(e))
 
 
 def initialize_optimizer_state(optimizer: torch.optim.Optimizer):
