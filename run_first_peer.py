@@ -33,7 +33,6 @@ if __name__ == '__main__':
             exit(-1)
 
     dht = hivemind.DHT(start=True, listen_on=args.listen_on, endpoint=f"{args.address}:*")
-    dht.store('Debug', 'qq', expiration_time=hivemind.get_dht_time() + 1000)
     print(f"Running DHT root at {args.address}:{dht.port}", flush=True)
     while True:
         dht.get(uuid.uuid4().bytes, latest=True)

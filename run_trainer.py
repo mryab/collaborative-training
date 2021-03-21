@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 import transformers
-from apex.optimizers import FusedLAMB
+from torch_optimizer import Lamb
 from datasets import load_from_disk
 from transformers import (set_seed, HfArgumentParser, TrainingArguments,
                           DataCollatorForLanguageModeling, AlbertTokenizerFast, AlbertConfig, AlbertForPreTraining)
@@ -115,7 +115,7 @@ def main():
         },
     ]
 
-    optimizer = FusedLAMB(
+    optimizer = Lamb(
         optimizer_grouped_parameters,
         lr=training_args.learning_rate,
         betas=(training_args.adam_beta1, training_args.adam_beta2),

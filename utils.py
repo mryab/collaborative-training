@@ -1,4 +1,3 @@
-import logging
 from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import chain
@@ -9,7 +8,6 @@ import hivemind
 from hivemind.utils import nested_flatten, nested_pack
 from transformers import Trainer
 
-logger = logging.getLogger(__name__)
 
 class SimpleAverager(hivemind.DecentralizedAverager):
     """ A daemon that runs decentralized averaging of model parameters and gradients """
@@ -22,63 +20,41 @@ class SimpleAverager(hivemind.DecentralizedAverager):
         averaged_tensors += tuple(torch.zeros_like(tensor) for tensor in averaged_tensors)
 
         super().__init__(averaged_tensors=averaged_tensors, **kwargs)
-        logger.info('Averager is created')
 
     def get_current_state(self):
         """
         Get current model/optimizer state and when requested by a newbie peer. executed in the host process.
         :returns: a tuple of (serializable_small_metadata, sequence of torch tensors)
         """
-        logger.info('Getting current state')
-        try:
-            with torch.no_grad():
-                model_parameters = [x.cpu() for x in self.trainer.model.parameters()]
-                logger.info('OK model parameters')
-                optimizer_metadata, optimizer_tensors = dump_optimizer_state(self.trainer.optimizer)
-                logger.info('OK optimizer state')
+        with torch.no_grad():
+            model_parameters = [x.cpu() for x in self.trainer.model.parameters()]
+            optimizer_metadata, optimizer_tensors = dump_optimizer_state(self.trainer.optimizer)
 
-            metadata = dict(step=self.trainer.state.global_step, group_bits=self.get_group_bits(),
-                            optimizer_metadata=optimizer_metadata)
-
-            logger.info('OK metadata')
-        except Exception as e:
-            logger.info('ERROR' + str(e))
-
+        metadata = dict(step=self.trainer.state.global_step, group_bits=self.get_group_bits(),
+                        optimizer_metadata=optimizer_metadata)
         return metadata, list(chain(model_parameters, optimizer_tensors))
 
     def load_state_from_peers(self, **kwargs):
         """ Attempt to download the latest optimizer state from peers and update trainer parameters/statistics """
-        logger.info('Loading state from peers')
         loadad_state = super().load_state_from_peers(**kwargs)
-        logger.info('Base class load_state_from_peers done')
         if loadad_state is None:
             return
 
-        logger.info('Loaded state is not None')
+        metadata, flat_tensors = loadad_state
+        num_params = len(list(self.trainer.model.parameters()))
+        model_parameters, opt_tensors = flat_tensors[:num_params], flat_tensors[num_params:]
+        with torch.no_grad():
+            for local_param, loaded_param in zip(self.trainer.model.parameters(), model_parameters):
+                local_param[...] = loaded_param
+            load_optimizer_state(self.trainer.optimizer, metadata['optimizer_metadata'], opt_tensors)
 
-        try:
-            metadata, flat_tensors = loadad_state
-            num_params = len(list(self.trainer.model.parameters()))
-            model_parameters, opt_tensors = flat_tensors[:num_params], flat_tensors[num_params:]
-            with torch.no_grad():
-                for local_param, loaded_param in zip(self.trainer.model.parameters(), model_parameters):
-                    local_param[...] = loaded_param
-                load_optimizer_state(self.trainer.optimizer, metadata['optimizer_metadata'], opt_tensors)
-
-            logger.info('Optimizer is loaded')
-            
-            logger.info(str(self.trainer.optimizer))
-
-            collaboration_step = metadata['step']
-            while self.trainer.state.global_step < collaboration_step:
-                self.trainer.state.global_step += 1
-                self.trainer.lr_scheduler.step()
-        except Exception as e:
-            logger.info('ERROR!' + str(e))
+        collaboration_step = metadata['step']
+        while self.trainer.state.global_step < collaboration_step:
+            self.trainer.state.global_step += 1
+            self.trainer.lr_scheduler.step()
 
 
 def initialize_optimizer_state(optimizer: torch.optim.Optimizer):
-    print('Initializing optimizer step')
     for param_group in optimizer.param_groups:
         for param in param_group['params']:
             if param.grad is None:
