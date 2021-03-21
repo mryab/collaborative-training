@@ -50,8 +50,11 @@ class SimpleAverager(hivemind.DecentralizedAverager):
         """ Attempt to download the latest optimizer state from peers and update trainer parameters/statistics """
         logger.info('Loading state from peers')
         loadad_state = super().load_state_from_peers(**kwargs)
+        logger.info('Base class load_state_from_peers done')
         if loadad_state is None:
             return
+
+        logger.info('Loaded state is not None')
 
         try:
             metadata, flat_tensors = loadad_state
@@ -63,6 +66,7 @@ class SimpleAverager(hivemind.DecentralizedAverager):
                 load_optimizer_state(self.trainer.optimizer, metadata['optimizer_metadata'], opt_tensors)
 
             logger.info('Optimizer is loaded')
+            
             logger.info(str(self.trainer.optimizer))
 
             collaboration_step = metadata['step']
