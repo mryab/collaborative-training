@@ -218,9 +218,13 @@ class CollaborativeTrainer(ExtendableTrainer):
         num_clients = sum(is_client for *_, is_client in valid_peer_states)
 
         global_optimizer_step = self.local_step
-        for peer in valid_peer_states:
-            if isinstance(peer, (tuple, list)) and isinstance(peer[0], int):
-                global_optimizer_step = max(global_optimizer_step, peer[0])
+        try:
+            for peer in valid_peer_states:
+                if isinstance(peer, (tuple, list)) and isinstance(peer[0], int) and isinstance(peer[-1], bool):
+                    if not peer[-1]: # not is_client
+                        global_optimizer_step = max(global_optimizer_step, peer[0])
+        except:
+            pass
 
         total_samples_accumulated = estimated_curent_samples = total_samples_per_second = 0
 
