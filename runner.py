@@ -1,6 +1,5 @@
 import subprocess
 import socket
-import shlex
 
 
 def syslog(message, host, level=6, facility=1,  port=514):
@@ -14,7 +13,7 @@ def syslog(message, host, level=6, facility=1,  port=514):
 
 
 def run_with_logging(command, address):
-    proc = subprocess.Popen(shlex.split(command), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True)
 
     while True:
         output = proc.stdout.readline().rstrip()
