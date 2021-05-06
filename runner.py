@@ -20,6 +20,6 @@ def run_with_logging(command, address):
         if proc.poll() is not None:
             break
         if output:
-            if output[0] != '[': or "verag" in output:
+            if output[0] != '[' or "verag" in output:
                 print(output)
             syslog(output, host=address)
