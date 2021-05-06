@@ -8,7 +8,7 @@ def syslog(message, host, level=6, facility=1,  port=514):
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     data = '<%d> %s' % (level + facility*8, message)
-    sock.sendto(bytes(data, "ascii"), (host, port))
+    sock.sendto(bytes(data, "utf-8"), (host, port))
     sock.close()
 
 
