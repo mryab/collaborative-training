@@ -106,6 +106,7 @@ class CollaborativeCallback(transformers.TrainerCallback):
         self.statistics_expiration = statistics_expiration
         self.last_reported_collaboration_step = -1
         self.previous_state = self.get_current_state()
+        self.total_samples_processed = 0
         self.samples = 0
         self.steps = 0
         self.loss = 0
@@ -128,7 +129,7 @@ class CollaborativeCallback(transformers.TrainerCallback):
             self.steps += 1
             if self.collaborative_optimizer.local_step != self.last_reported_collaboration_step:
                 self.last_reported_collaboration_step = self.collaborative_optimizer.local_step
-                self.total_samples_processed = 0
+                self.total_samples_processed += self.samples
 
                 samples_per_second = self.collaborative_optimizer.performance_ema.samples_per_second
                 statistics = metrics_utils.LocalMetrics(
