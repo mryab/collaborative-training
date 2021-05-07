@@ -7,7 +7,7 @@ from typing import Optional
 
 import torch
 from torch_optimizer import Lamb
-from transformers import AlbertForPreTraining, AlbertConfig, HfArgumentParser
+from transformers import AlbertForPreTraining, AlbertConfig, HfArgumentParser, AlbertTokenizer
 import wandb
 from whatsmyip.providers import GoogleDnsProvider
 from whatsmyip.ip import get_ip
@@ -69,6 +69,8 @@ class CheckpointHandler:
 
         config = AlbertConfig.from_pretrained(coordinator_args.model_config_path)
         self.model = AlbertForPreTraining(config)
+        tokenizer = AlbertTokenizer.from_pretrained("SaulLu/albert-bn-dev")
+        model.resize_token_embeddings(len(tokenizer))
 
         no_decay = ["bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [
