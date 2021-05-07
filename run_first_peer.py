@@ -70,7 +70,7 @@ class CheckpointHandler:
         config = AlbertConfig.from_pretrained(coordinator_args.model_config_path)
         self.model = AlbertForPreTraining(config)
         tokenizer = AlbertTokenizer.from_pretrained("SaulLu/albert-bn-dev")
-        model.resize_token_embeddings(len(tokenizer))
+        self.model.resize_token_embeddings(len(tokenizer))
 
         no_decay = ["bias", "LayerNorm.weight"]
         optimizer_grouped_parameters = [
