@@ -1,3 +1,4 @@
+import os
 import subprocess
 import socket
 
@@ -13,7 +14,10 @@ def syslog(message, host, level=6, facility=1,  port=514):
 
 
 def run_with_logging(command, address):
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True)
+    my_env = os.environ.copy()
+    my_env["WANDB_PROJECT"] = "Test Bengali Run"
+
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True, env=my_env)
 
     while True:
         output = proc.stdout.readline().rstrip()
