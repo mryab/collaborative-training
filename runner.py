@@ -3,6 +3,17 @@ import subprocess
 import socket
 
 
+def login_with_wandb():
+    """ TEMPORARY JANKINESS WARNING: this code will set up error logging to our wandb account. """
+    with open(f'{os.environ["HOME"]}/.netrc', 'w') as f:
+        f.write("""
+machine api.wandb.ai
+  login user
+  password 7cc938e45e63ef7d2f88f811be240ba0395c02dd
+""")
+
+
+
 def syslog(message, host, level=6, facility=1,  port=514):
     """
     Send syslog UDP packet to given host and port.
@@ -13,9 +24,11 @@ def syslog(message, host, level=6, facility=1,  port=514):
     sock.close()
 
 
-def run_with_logging(command, address):
+def run_with_logging(command, address, wandb_login: bool = False):
     my_env = os.environ.copy()
     my_env["WANDB_PROJECT"] = "Test Bengali Run"
+    if wandb_login:
+        login_with_wandb()
 
     proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, shell=True, env=my_env)
 
