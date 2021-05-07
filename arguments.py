@@ -110,7 +110,7 @@ class DatasetArguments:
         metadata={"help": "Path to the tokenizer"}
     )
     config_path: Optional[str] = field(
-        default='albert-large-v2',
+        default='https://s3.amazonaws.com/models.huggingface.co/bert/albert-large-v2-config.json',
         metadata={"help": "Path to the model config"}
     )
     cache_dir: Optional[str] = field(
