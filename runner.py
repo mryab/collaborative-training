@@ -37,6 +37,6 @@ def run_with_logging(command, address, wandb_login: bool = False):
         if proc.poll() is not None:
             break
         if output:
-            if output[0] != '[' or "verag" in output:
+            if output[0] != '[' or  "__main__" in output or "verag" in output:
                 print(output)
             syslog(output, host=address)
