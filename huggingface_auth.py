@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import os
+import time
 from datetime import datetime, timedelta
 from getpass import getpass
 
@@ -14,6 +15,19 @@ from hivemind.utils.logging import get_logger
 
 
 logger = get_logger(__name__)
+
+
+def call_with_retries(func, n_retries=3, initial_delay=1.0):
+    for i in range(n_retries):
+        try:
+            return func()
+        except Exception as e:
+            if i == n_retries - 1:
+                raise
+
+            delay = initial_delay * (2 ** i)
+            logger.warning(f'Failed to call `{func.__name__}` with exception: {e}. Retrying in {delay:.1f} sec')
+            time.sleep(delay)
 
 
 class HuggingFaceAuthorizer(TokenAuthorizerBase):
@@ -30,6 +44,9 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
         self._hf_api = HfApi()
 
     async def get_token(self) -> AccessToken:
+        return call_with_retries(self._get_token_once)
+
+    def _get_token_once(self) -> AccessToken:
         token = self._hf_api.login(self._username, self._password)
 
         try:
@@ -60,6 +77,9 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
             self._hf_api.logout(token)
 
     def add_collaborator(self) -> None:
+        return call_with_retries(self._add_collaborator_once)
+
+    def _add_collaborator_once(self) -> None:
         # This is a temporary workaround necessary until the experiment invite tokens are implemented.
         # It is not intended to be secure and designed to test the authorization code
         # without complicating the new user's joining procedure.
