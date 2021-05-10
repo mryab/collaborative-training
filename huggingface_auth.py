@@ -17,10 +17,16 @@ from hivemind.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+class NonRetriableError(Exception):
+    pass
+
+
 def call_with_retries(func, n_retries=3, initial_delay=1.0):
     for i in range(n_retries):
         try:
             return func()
+        except NonRetriableError:
+            raise
         except Exception as e:
             if i == n_retries - 1:
                 raise
@@ -28,6 +34,10 @@ def call_with_retries(func, n_retries=3, initial_delay=1.0):
             delay = initial_delay * (2 ** i)
             logger.warning(f'Failed to call `{func.__name__}` with exception: {e}. Retrying in {delay:.1f} sec')
             time.sleep(delay)
+
+
+class InvalidCredentialsError(NonRetriableError):
+    pass
 
 
 class HuggingFaceAuthorizer(TokenAuthorizerBase):
@@ -50,7 +60,13 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
         return call_with_retries(self._get_token_once)
 
     def _get_token_once(self) -> AccessToken:
-        token = self._hf_api.login(self._username, self._password)
+        try:
+            token = self._hf_api.login(self._username, self._password)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:  # Unauthorized
+                logger.error(f'Failed to log in: {e}')
+                raise InvalidCredentialsError()
+            raise
 
         try:
             url = f'{self._AUTH_SERVER_URL}/api/experiments/join/{self._experiment_id}/'
@@ -144,14 +160,26 @@ DEFAULT_EXPERIMENT_ID = 3
 def authorize_with_huggingface() -> HuggingFaceAuthorizer:
     experiment_id = os.getenv('HF_EXPERIMENT_ID', DEFAULT_EXPERIMENT_ID)
 
-    username = os.getenv('HF_USERNAME')
-    if username is None:
-        username = input('HuggingFace username: ')
-    password = os.getenv('HF_PASSWORD')
-    if password is None:
-        password = getpass('HuggingFace password: ')
+    loop = asyncio.get_event_loop()
+    while True:
+        username = os.getenv('HF_USERNAME')
+        if username is None:
+            while True:
+                username = input('HuggingFace username: ')
+                if '@' not in username:
+                    break
+                print('Please enter your Huggingface _username_ instead of the email address!')
 
-    authorizer = HuggingFaceAuthorizer(experiment_id, username, password)
-    authorizer.add_collaborator()
-    asyncio.run(authorizer.refresh_token_if_needed())
+        password = os.getenv('HF_PASSWORD')
+        if password is None:
+            password = getpass('HuggingFace password: ')
+
+        authorizer = HuggingFaceAuthorizer(experiment_id, username, password)
+        authorizer.add_collaborator()
+        try:
+            loop.run_until_complete(authorizer.refresh_token_if_needed())
+            break
+        except InvalidCredentialsError:
+            print('Invalid username or password, please try again')
+
     return authorizer
