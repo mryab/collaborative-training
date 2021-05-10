@@ -41,6 +41,9 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
         self._password = password
 
         self._authority_public_key = None
+        self.coordinator_ip = None
+        self.coordinator_port = None
+
         self._hf_api = HfApi()
 
     async def get_token(self) -> AccessToken:
@@ -62,6 +65,8 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
             response = response.json()
 
             self._authority_public_key = RSAPublicKey.from_bytes(response['auth_server_public_key'].encode())
+            self.coordinator_ip = response['coordinator_ip']
+            self.coordinator_port = response['coordinator_port']
 
             token_dict = response['hivemind_access']
             access_token = AccessToken()

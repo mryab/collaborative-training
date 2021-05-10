@@ -204,18 +204,18 @@ def main():
     assert training_args.dataloader_num_workers == 0, 'streaming dataset does not support multiple workers'
     assert not training_args.do_eval, 'local evaluation is not supported (yet)'
 
-    logger.info(f"Found {len(collaboration_args.initial_peers)} initial peers: {collaboration_args.initial_peers}")
-    if len(collaboration_args.initial_peers) == 0:
-        raise ValueError("Please specify at least one network endpoint in initial peers.")
-
-    collaboration_args_dict = asdict(collaboration_args)
-    setup_logging(training_args)
-
     try:
         authorizer = authorize_with_huggingface()
     except Exception as e:
         logger.fatal(f'Authorization failed: {e}')
         sys.exit(1)
+
+    if not collaboration_args.initial_peers:
+        collaboration_args.initial_peers = [f'{authorizer.coordinator_ip}:{authorizer.coordinator_port}']
+    logger.info(f"Using {len(collaboration_args.initial_peers)} initial peers: {collaboration_args.initial_peers}")
+
+    collaboration_args_dict = asdict(collaboration_args)
+    setup_logging(training_args)
 
     # Set seed before initializing model.
     set_seed(training_args.seed)
