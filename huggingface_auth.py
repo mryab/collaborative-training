@@ -97,31 +97,6 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
         finally:
             self._hf_api.logout(token)
 
-    def add_collaborator(self) -> None:
-        return call_with_retries(self._add_collaborator_once)
-
-    def _add_collaborator_once(self) -> None:
-        # This is a temporary workaround necessary until the experiment invite tokens are implemented.
-        # It is not intended to be secure and designed to test the authorization code
-        # without complicating the new user's joining procedure.
-
-        token = self._hf_api.login('robot-bengali', base64.b64decode(b'aGdKQlViTDMzd2h2').decode())
-
-        try:
-            url = f'{self._AUTH_SERVER_URL}/api/experiments/{self._experiment_id}/'
-            headers = {'Authorization': f'Bearer {token}'}
-            response = requests.put(url, headers=headers, json={
-                'experiment_full_update': {
-                    'added_collaborators': [{'username': self._username}],
-                },
-            })
-
-            response.raise_for_status()
-            logger.info(f'User {self._username} has been added to collaborators of '
-                        f'the experiment {self._experiment_id}')
-        finally:
-            self._hf_api.logout(token)
-
     def is_token_valid(self, access_token: AccessToken) -> bool:
         data = self._token_to_bytes(access_token)
         if not self._authority_public_key.verify(data, access_token.signature):
@@ -175,7 +150,6 @@ def authorize_with_huggingface() -> HuggingFaceAuthorizer:
             password = getpass('HuggingFace password: ')
 
         authorizer = HuggingFaceAuthorizer(experiment_id, username, password)
-        authorizer.add_collaborator()
         try:
             loop.run_until_complete(authorizer.refresh_token_if_needed())
             break
