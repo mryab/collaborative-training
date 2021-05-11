@@ -144,11 +144,7 @@ if __name__ == '__main__':
         logger.warning("No address specified. Attempting to infer address from DNS.")
         coordinator_args.address = get_ip(GoogleDnsProvider)
 
-    try:
-        authorizer = authorize_with_huggingface()
-    except Exception as e:
-        logger.fatal(f'Authorization failed: {e}')
-        sys.exit(1)
+    authorizer = authorize_with_huggingface()
 
     experiment_prefix = coordinator_args.experiment_prefix
     validators, local_public_key = metrics_utils.make_validators(experiment_prefix)

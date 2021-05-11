@@ -1,6 +1,6 @@
-import asyncio
 import base64
 import os
+import time
 from datetime import datetime, timedelta
 from getpass import getpass
 
@@ -16,24 +16,66 @@ from hivemind.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+class NonRetriableError(Exception):
+    pass
+
+
+def call_with_retries(func, n_retries=10, initial_delay=1.0):
+    for i in range(n_retries):
+        try:
+            return func()
+        except NonRetriableError:
+            raise
+        except Exception as e:
+            if i == n_retries - 1:
+                raise
+
+            delay = initial_delay * (2 ** i)
+            logger.warning(f'Failed to call `{func.__name__}` with exception: {e}. Retrying in {delay:.1f} sec')
+            time.sleep(delay)
+
+
+class InvalidCredentialsError(NonRetriableError):
+    pass
+
+
 class HuggingFaceAuthorizer(TokenAuthorizerBase):
     _AUTH_SERVER_URL = 'https://collaborative-training-auth.huggingface.co'
 
     def __init__(self, experiment_id: int, username: str, password: str):
         super().__init__()
 
-        self._experiment_id = experiment_id
-        self._username = username
-        self._password = password
+        self.experiment_id = experiment_id
+        self.username = username
+        self.password = password
 
         self._authority_public_key = None
+        self.coordinator_ip = None
+        self.coordinator_port = None
+
         self._hf_api = HfApi()
 
     async def get_token(self) -> AccessToken:
-        token = self._hf_api.login(self._username, self._password)
+        """
+        Hivemind calls this method to refresh the token when necessary.
+        """
+
+        self.join_experiment()
+        return self._local_access_token
+
+    def join_experiment(self) -> None:
+        call_with_retries(self._join_experiment)
+
+    def _join_experiment(self) -> None:
+        try:
+            token = self._hf_api.login(self.username, self.password)
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:  # Unauthorized
+                raise InvalidCredentialsError()
+            raise
 
         try:
-            url = f'{self._AUTH_SERVER_URL}/api/experiments/join/{self._experiment_id}/'
+            url = f'{self._AUTH_SERVER_URL}/api/experiments/join/{self.experiment_id}/'
             headers = {'Authorization': f'Bearer {token}'}
             response = requests.put(url, headers=headers, json={
                 'experiment_join_input': {
@@ -45,6 +87,8 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
             response = response.json()
 
             self._authority_public_key = RSAPublicKey.from_bytes(response['auth_server_public_key'].encode())
+            self.coordinator_ip = response['coordinator_ip']
+            self.coordinator_port = response['coordinator_port']
 
             token_dict = response['hivemind_access']
             access_token = AccessToken()
@@ -52,32 +96,9 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
             access_token.public_key = token_dict['peer_public_key'].encode()
             access_token.expiration_time = str(datetime.fromisoformat(token_dict['expiration_time']))
             access_token.signature = token_dict['signature'].encode()
-
+            self._local_access_token = access_token
             logger.info(f'Access for user {access_token.username} '
                         f'has been granted until {access_token.expiration_time} UTC')
-            return access_token
-        finally:
-            self._hf_api.logout(token)
-
-    def add_collaborator(self) -> None:
-        # This is a temporary workaround necessary until the experiment invite tokens are implemented.
-        # It is not intended to be secure and designed to test the authorization code
-        # without complicating the new user's joining procedure.
-
-        token = self._hf_api.login('robot-bengali', base64.b64decode(b'aGdKQlViTDMzd2h2').decode())
-
-        try:
-            url = f'{self._AUTH_SERVER_URL}/api/experiments/{self._experiment_id}/'
-            headers = {'Authorization': f'Bearer {token}'}
-            response = requests.put(url, headers=headers, json={
-                'experiment_full_update': {
-                    'added_collaborators': [{'username': self._username}],
-                },
-            })
-
-            response.raise_for_status()
-            logger.info(f'User {self._username} has been added to collaborators of '
-                        f'the experiment {self._experiment_id}')
         finally:
             self._hf_api.logout(token)
 
@@ -113,20 +134,27 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
         return f'{access_token.username} {access_token.public_key} {access_token.expiration_time}'.encode()
 
 
-DEFAULT_EXPERIMENT_ID = 3
-
-
 def authorize_with_huggingface() -> HuggingFaceAuthorizer:
-    experiment_id = os.getenv('HF_EXPERIMENT_ID', DEFAULT_EXPERIMENT_ID)
+    while True:
+        experiment_id = os.getenv('HF_EXPERIMENT_ID')
+        if experiment_id is None:
+            experiment_id = input('HuggingFace experiment ID: ')
 
-    username = os.getenv('HF_USERNAME')
-    if username is None:
-        username = input('HuggingFace username: ')
-    password = os.getenv('HF_PASSWORD')
-    if password is None:
-        password = getpass('HuggingFace password: ')
+        username = os.getenv('HF_USERNAME')
+        if username is None:
+            while True:
+                username = input('HuggingFace username: ')
+                if '@' not in username:
+                    break
+                print('Please enter your Huggingface _username_ instead of the email address!')
 
-    authorizer = HuggingFaceAuthorizer(experiment_id, username, password)
-    authorizer.add_collaborator()
-    asyncio.run(authorizer.refresh_token_if_needed())
-    return authorizer
+        password = os.getenv('HF_PASSWORD')
+        if password is None:
+            password = getpass('HuggingFace password: ')
+
+        authorizer = HuggingFaceAuthorizer(experiment_id, username, password)
+        try:
+            authorizer.join_experiment()
+            return authorizer
+        except InvalidCredentialsError:
+            print('Invalid username or password, please try again')
