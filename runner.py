@@ -26,7 +26,7 @@ def syslog(message, host, level=6, facility=1,  port=514):
 
 def run_with_logging(command, address, wandb_login: bool = False):
     my_env = os.environ.copy()
-    my_env["WANDB_PROJECT"] = "Test Bengali Run"
+    my_env["WANDB_PROJECT"] = "Test-Bengali-Run"
     if wandb_login:
         login_with_wandb()
 
@@ -37,6 +37,6 @@ def run_with_logging(command, address, wandb_login: bool = False):
         if proc.poll() is not None:
             break
         if output:
-            if output[0] != '[' or "verag" in output:
+            if output[0] != '[' or  "__main__" in output or "verag" in output:
                 print(output)
             syslog(output, host=address)

@@ -7,3 +7,4 @@ whatsmyip
 bnlp_toolkit
 bltk
 aiohttp
+requests>=2.24.0

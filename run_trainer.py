@@ -2,6 +2,7 @@
 
 import logging
 import os
+import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Dict, Any
@@ -19,6 +20,7 @@ from torch_optimizer import Lamb
 
 import hivemind
 from arguments import CollaborationArguments, DatasetArguments, AlbertTrainingArguments
+from huggingface_auth import authorize_with_huggingface
 from streaming_dataset import make_lazy_wikioscar_dataset
 import metrics_utils
 
@@ -138,7 +140,7 @@ class CollaborativeCallback(transformers.TrainerCallback):
                     samples_accumulated=self.samples,
                     loss=self.loss,
                     mini_steps=self.steps)
-                
+
                 logger.info(f"Step {self.collaborative_optimizer.local_step}")
                 logger.info(f"Your current contribution: {self.total_samples_processed} samples")
                 if self.steps:
@@ -202,9 +204,11 @@ def main():
     assert training_args.dataloader_num_workers == 0, 'streaming dataset does not support multiple workers'
     assert not training_args.do_eval, 'local evaluation is not supported (yet)'
 
-    logger.info(f"Found {len(collaboration_args.initial_peers)} initial peers: {collaboration_args.initial_peers}")
-    if len(collaboration_args.initial_peers) == 0:
-        raise ValueError("Please specify at least one network endpoint in initial peers.")
+    authorizer = authorize_with_huggingface()
+
+    if not collaboration_args.initial_peers:
+        collaboration_args.initial_peers = [f'{authorizer.coordinator_ip}:{authorizer.coordinator_port}']
+    logger.info(f"Using {len(collaboration_args.initial_peers)} initial peers: {collaboration_args.initial_peers}")
 
     collaboration_args_dict = asdict(collaboration_args)
     setup_logging(training_args)
@@ -225,7 +229,8 @@ def main():
         start=True, initial_peers=collaboration_args_dict.pop('initial_peers'),
         listen=not collaboration_args_dict['client_mode'],
         listen_on=collaboration_args_dict.pop('dht_listen_on'),
-        endpoint=collaboration_args_dict.pop('endpoint'), record_validators=validators)
+        endpoint=collaboration_args_dict.pop('endpoint'),
+        record_validators=validators, authorizer=authorizer)
 
     total_batch_size_per_step = training_args.per_device_train_batch_size * training_args.gradient_accumulation_steps
     statistics_expiration = collaboration_args_dict.pop('statistics_expiration')
@@ -239,7 +244,7 @@ def main():
         target_batch_size=adjusted_target_batch_size, client_mode=collaboration_args_dict.pop('client_mode'),
         verbose=True, start=True, **collaboration_args_dict
     )
-    
+
     # Shuffle data independently for each peer to avoid duplicating batches [important for quality]
     tokenized_datasets = make_lazy_wikioscar_dataset(tokenizer=tokenizer, shuffle_seed=hash(local_public_key) % 2 ** 31)
     # This data collator will take care of randomly masking the tokens.
