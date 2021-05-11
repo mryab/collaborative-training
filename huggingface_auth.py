@@ -1,4 +1,3 @@
-import asyncio
 import base64
 import os
 import time
@@ -21,7 +20,7 @@ class NonRetriableError(Exception):
     pass
 
 
-def call_with_retries(func, n_retries=3, initial_delay=1.0):
+def call_with_retries(func, n_retries=10, initial_delay=1.0):
     for i in range(n_retries):
         try:
             return func()
@@ -46,9 +45,9 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
     def __init__(self, experiment_id: int, username: str, password: str):
         super().__init__()
 
-        self._experiment_id = experiment_id
-        self._username = username
-        self._password = password
+        self.experiment_id = experiment_id
+        self.username = username
+        self.password = password
 
         self._authority_public_key = None
         self.coordinator_ip = None
@@ -57,19 +56,26 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
         self._hf_api = HfApi()
 
     async def get_token(self) -> AccessToken:
-        return call_with_retries(self._get_token_once)
+        """
+        Hivemind calls this method to refresh the token when necessary.
+        """
 
-    def _get_token_once(self) -> AccessToken:
+        self.join_experiment()
+        return self._local_access_token
+
+    def join_experiment(self) -> None:
+        call_with_retries(self._join_experiment)
+
+    def _join_experiment(self) -> None:
         try:
-            token = self._hf_api.login(self._username, self._password)
+            token = self._hf_api.login(self.username, self.password)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 401:  # Unauthorized
-                logger.error(f'Failed to log in: {e}')
                 raise InvalidCredentialsError()
             raise
 
         try:
-            url = f'{self._AUTH_SERVER_URL}/api/experiments/join/{self._experiment_id}/'
+            url = f'{self._AUTH_SERVER_URL}/api/experiments/join/{self.experiment_id}/'
             headers = {'Authorization': f'Bearer {token}'}
             response = requests.put(url, headers=headers, json={
                 'experiment_join_input': {
@@ -90,10 +96,9 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
             access_token.public_key = token_dict['peer_public_key'].encode()
             access_token.expiration_time = str(datetime.fromisoformat(token_dict['expiration_time']))
             access_token.signature = token_dict['signature'].encode()
-
+            self._local_access_token = access_token
             logger.info(f'Access for user {access_token.username} '
                         f'has been granted until {access_token.expiration_time} UTC')
-            return access_token
         finally:
             self._hf_api.logout(token)
 
@@ -129,14 +134,12 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
         return f'{access_token.username} {access_token.public_key} {access_token.expiration_time}'.encode()
 
 
-DEFAULT_EXPERIMENT_ID = 3
-
-
 def authorize_with_huggingface() -> HuggingFaceAuthorizer:
-    experiment_id = os.getenv('HF_EXPERIMENT_ID', DEFAULT_EXPERIMENT_ID)
-
-    loop = asyncio.get_event_loop()
     while True:
+        experiment_id = os.getenv('HF_EXPERIMENT_ID')
+        if experiment_id is None:
+            experiment_id = input('HuggingFace experiment ID: ')
+
         username = os.getenv('HF_USERNAME')
         if username is None:
             while True:
@@ -151,9 +154,7 @@ def authorize_with_huggingface() -> HuggingFaceAuthorizer:
 
         authorizer = HuggingFaceAuthorizer(experiment_id, username, password)
         try:
-            loop.run_until_complete(authorizer.refresh_token_if_needed())
-            break
+            authorizer.join_experiment()
+            return authorizer
         except InvalidCredentialsError:
             print('Invalid username or password, please try again')
-
-    return authorizer
