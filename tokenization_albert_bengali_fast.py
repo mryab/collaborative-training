@@ -86,7 +86,7 @@ class AlbertBengaliTokenizerFast(PreTrainedTokenizerFast):
             cls_token=cls_token,
             pad_token=pad_token,
             mask_token=mask_token,
-            model_max_length=512,
+            model_max_length=model_max_length,
             **kwargs,
         )
 
