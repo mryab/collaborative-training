@@ -106,7 +106,7 @@ class CollaborationArguments(AveragerArguments, CollaborativeOptimizerArguments,
 @dataclass
 class DatasetArguments:
     tokenizer_path: Optional[str] = field(
-        default='SaulLu/albert-bn-dev',
+        default='SaulLu/bengali-tokenizer',
         metadata={"help": "Path to the tokenizer"}
     )
     config_path: Optional[str] = field(
