@@ -1,5 +1,7 @@
 from typing import Optional, Tuple
-from transformers import PreTrainedTokenizerFast, AddedToken
+
+from transformers import AddedToken, PreTrainedTokenizerFast
+
 
 VOCAB_FILES_NAMES = {"tokenizer_file": "tokenizer.json"}
 
@@ -12,6 +14,7 @@ PRETRAINED_VOCAB_FILES_MAP = {
 PRETRAINED_POSITIONAL_EMBEDDINGS_SIZES = {
     "SaulLu/bengali-tokenizer": 512,
 }
+
 
 class AlbertBengaliTokenizerFast(PreTrainedTokenizerFast):
     """
@@ -72,10 +75,14 @@ class AlbertBengaliTokenizerFast(PreTrainedTokenizerFast):
         mask_token="[MASK]",
         padding_side="right",
         model_max_length=512,
-        **kwargs
+        **kwargs,
     ):
         # Mask token behave like a normal word, i.e. include the space before it
-        mask_token = AddedToken(mask_token, lstrip=False, rstrip=False, normalized=False) if isinstance(mask_token, str) else mask_token
+        mask_token = (
+            AddedToken(mask_token, lstrip=False, rstrip=False, normalized=False)
+            if isinstance(mask_token, str)
+            else mask_token
+        )
 
         super().__init__(
             tokenizer_file=tokenizer_file,
@@ -91,4 +98,6 @@ class AlbertBengaliTokenizerFast(PreTrainedTokenizerFast):
         )
 
     def save_vocabulary(self, save_directory: str, filename_prefix: Optional[str] = None) -> Tuple[str]:
-        return  super()._save_pretrained(file_names=(), save_directory=save_directory, filename_prefix=filename_prefix, legacy_format=False)
+        return super()._save_pretrained(
+            file_names=(), save_directory=save_directory, filename_prefix=filename_prefix, legacy_format=False
+        )
