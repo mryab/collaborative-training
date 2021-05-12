@@ -39,6 +39,10 @@ class InvalidCredentialsError(NonRetriableError):
     pass
 
 
+class NotInAllowlistError(NonRetriableError):
+    pass
+
+
 class HuggingFaceAuthorizer(TokenAuthorizerBase):
     _AUTH_SERVER_URL = 'https://collaborative-training-auth.huggingface.co'
 
@@ -99,6 +103,10 @@ class HuggingFaceAuthorizer(TokenAuthorizerBase):
             self._local_access_token = access_token
             logger.info(f'Access for user {access_token.username} '
                         f'has been granted until {access_token.expiration_time} UTC')
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 401:  # Unauthorized
+                raise NotInAllowlistError()
+            raise
         finally:
             self._hf_api.logout(token)
 
@@ -158,3 +166,6 @@ def authorize_with_huggingface() -> HuggingFaceAuthorizer:
             return authorizer
         except InvalidCredentialsError:
             print('Invalid username or password, please try again')
+        except NotInAllowlistError:
+            print('This account is not specified in the allowlist. '
+                  'Please ask a moderator to add you to the allowlist and try again')
