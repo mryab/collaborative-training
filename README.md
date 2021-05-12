@@ -7,7 +7,7 @@ This experiment is a project between Yandex and HF in which we aim to train an A
 
 # How to participate?
 
-* **Kaggle**. This option provides you a P100 and lasts longer than Colab. This requires a Kaggle account. **You must enable Internet access and switch kernel to GPU mode explicitly.**
+* **[Kaggle](https://www.kaggle.com/yhn112/collaborative-training-d87a28)**. This option provides you a P100 and lasts longer than Colab. This requires a Kaggle account. **You must enable Internet access and switch kernel to GPU mode explicitly.**
     * If it is stuck at "installing dependencies" for over 5 minutes, it means you changed session type too late. Simply restart with GPU / internet enabled and it should work just fine.
 
 * **[Colab](https://colab.research.google.com/github/mryab/collaborative-training/blob/main/colab_starter.ipynb)**.
