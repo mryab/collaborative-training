@@ -17,7 +17,7 @@ This experiment is a project between Yandex and HF in which we aim to train an A
     * If it is stuck at "installing dependencies" for over 5 minutes, it means you changed session type too late. Simply restart with GPU / internet enabled and it should work just fine.
     * If you ran Kaggle during last week's training, please create a new copy to update the code. On the 3 dots on the screenshot and than create a new copy (don’t click on Edit My Copy).
 
-* **[Colab](https://colab.research.google.com/github/mryab/collaborative-training/blob/main/colab_starter.ipynb)**.
+* **[Google Colab](https://colab.research.google.com/github/mryab/collaborative-training/blob/main/colab_starter.ipynb)**.
 
 **Please do not run multiple GPU instances on the same service!** You can use Kaggle in one tab and Colab in another, but avoid having two Colab GPU instances at the same time.
 
