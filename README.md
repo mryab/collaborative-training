@@ -1,6 +1,4 @@
 
-This code trains ALBERT-large-v2 model on Bengali Wikipedia and OSCAR.
-
 # What is this experiment about?
 This experiment is a project between Yandex and HF in which we aim to train an ALBERT model for Bengali collaboratively. That’s where you come in! Each participant can contribute by sharing their compute power, so the more we are, the faster the training is. This is achieved using the [Hivemind library](https://github.com/learning-at-home/hivemind/). You can read more about it in [this paper](https://arxiv.org/abs/2103.03239).
 
