@@ -26,7 +26,8 @@ def syslog(message, host, level=6, facility=1,  port=514):
 
 def run_with_logging(command, address, wandb_login: bool = False):
     my_env = os.environ.copy()
-    my_env["WANDB_PROJECT"] = "Test-Bengali-Run"
+    my_env["WANDB_ENTITY"] = "learning-at-home"
+    my_env["WANDB_PROJECT"] = "Worker_logs"
     if wandb_login:
         login_with_wandb()
 
