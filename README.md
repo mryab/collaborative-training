@@ -9,7 +9,7 @@ This experiment is a project between Yandex and HF in which we aim to train an A
 
 1. As a reminder, you need to provide your Hugging Face username to be able to participate. 
     * Current participants are already in the allowlist.
-    * New participants need to join the #albert-allowlist channel and add their username. Someone from the team will add you to the allowlist. If you see a :hourglass:  reaction, we’re on it! If you see a :white_check_mark: , you should be added by then. Feel free to reach out to us if you don’t have access.
+    * New participants need to join the #albert-allowlist channel and add their username. Someone from the team will add you to the allowlist. If you see a :hourglass:  reaction, we’re on it! If you see a :white_check_mark:, you should be added by then. Feel free to reach out to us if you don’t have access.
 
 2. You can join the training in few ways:
 
