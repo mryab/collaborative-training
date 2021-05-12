@@ -149,10 +149,11 @@ class CollaborativeCallback(transformers.TrainerCallback):
 
                 self.loss = 0
                 self.steps = 0
-                self.dht.store(key=self.collaborative_optimizer.prefix + "_metrics",
-                               subkey=self.local_public_key, value=statistics.dict(),
-                               expiration_time=hivemind.get_dht_time() + self.statistics_expiration,
-                               return_future=True)
+                if self.collaborative_optimizer.is_synchronized:
+                    self.dht.store(key=self.collaborative_optimizer.prefix + "_metrics",
+                                subkey=self.local_public_key, value=statistics.dict(),
+                                expiration_time=hivemind.get_dht_time() + self.statistics_expiration,
+                                return_future=True)
 
         self.samples = self.collaborative_optimizer.local_samples_accumulated
 
