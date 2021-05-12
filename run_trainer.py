@@ -116,7 +116,7 @@ class CollaborativeCallback(transformers.TrainerCallback):
 
     def on_train_begin(self, args: TrainingArguments, state: transformers.TrainerState,
                        control: transformers.TrainerControl, **kwargs):
-        logger.warning('Loading state from peers')
+        logger.info('Loading state from peers')
         self.collaborative_optimizer.load_state_from_peers()
 
     def on_step_end(self, args: TrainingArguments, state: transformers.TrainerState,
