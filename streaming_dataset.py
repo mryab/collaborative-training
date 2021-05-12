@@ -105,11 +105,12 @@ class WrappedIterableDataset(torch.utils.data.IterableDataset):
     def __iter__(self):
         started = False
         logger.info("Pre-fetching training samples...")
-        for sample in self.hf_iterable:
-            if not started:
-                logger.info("Began iterating minibatches!")
-                started = True
-            yield sample
+        while True:
+            for sample in self.hf_iterable:
+                if not started:
+                    logger.info("Began iterating minibatches!")
+                    started = True
+                yield sample
 
 
 def make_lazy_wikioscar_dataset(tokenizer, probs: Sequence[float] = (0.23, 0.77),

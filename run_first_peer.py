@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field, asdict
 import subprocess
+import sys
 import time
 from typing import Optional
 
@@ -16,6 +17,7 @@ from arguments import BaseTrainingArguments, CollaborativeOptimizerArguments, Av
 import hivemind
 from hivemind.utils.logging import get_logger
 from tokenization_albert_bengali_fast import AlbertBengaliTokenizerFast
+from huggingface_auth import authorize_with_huggingface
 import metrics_utils
 
 
@@ -143,11 +145,13 @@ if __name__ == '__main__':
         logger.warning("No address specified. Attempting to infer address from DNS.")
         coordinator_args.address = get_ip(GoogleDnsProvider)
 
+    authorizer = authorize_with_huggingface()
+
     experiment_prefix = coordinator_args.experiment_prefix
     validators, local_public_key = metrics_utils.make_validators(experiment_prefix)
     dht = hivemind.DHT(start=True, listen_on=coordinator_args.dht_listen_on,
                        endpoint=f"{coordinator_args.address}:*", initial_peers=coordinator_args.initial_peers,
-                       record_validators=validators)
+                       record_validators=validators, authorizer=authorizer)
 
     logger.info(f"Running DHT root at {coordinator_args.address}:{dht.port}")
 
