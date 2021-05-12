@@ -12,7 +12,7 @@ import transformers
 from datasets import load_from_disk
 from torch.utils.data import DataLoader
 from transformers import (set_seed, HfArgumentParser, TrainingArguments,
-                          DataCollatorForLanguageModeling, AlbertTokenizer, AlbertConfig, AlbertForPreTraining)
+                          DataCollatorForLanguageModeling, AlbertConfig, AlbertForPreTraining)
 from transformers.optimization import get_linear_schedule_with_warmup
 from transformers.trainer_utils import is_main_process
 from transformers.trainer import Trainer
@@ -22,6 +22,7 @@ import hivemind
 from arguments import CollaborationArguments, DatasetArguments, AlbertTrainingArguments
 from huggingface_auth import authorize_with_huggingface
 from streaming_dataset import make_lazy_wikioscar_dataset
+from tokenization_albert_bengali_fast import AlbertBengaliTokenizerFast
 import metrics_utils
 
 
@@ -217,7 +218,7 @@ def main():
     set_seed(training_args.seed)
 
     config = AlbertConfig.from_pretrained(dataset_args.config_path, cache_dir=dataset_args.cache_dir)
-    tokenizer = AlbertTokenizer.from_pretrained(dataset_args.tokenizer_path)
+    tokenizer = AlbertBengaliTokenizerFast.from_pretrained(dataset_args.tokenizer_path)
     model = get_model(training_args, config, tokenizer)
     model.to(training_args.device)
 
