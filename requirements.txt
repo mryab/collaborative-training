@@ -1,4 +1,4 @@
-transformers>=4.5.1
+transformers==4.5.1
 tokenizers>=0.10.2
 git+https://github.com/huggingface/datasets.git@streaming
 torch_optimizer>=0.1.0
